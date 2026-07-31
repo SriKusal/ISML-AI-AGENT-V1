@@ -4,11 +4,12 @@ from typing import Any
 import httpx
 
 from app.logging import get_logger
+from app.services.base import BaseLLMProvider
 
 logger = get_logger("app.services.gemini")
 
 
-class GeminiService:
+class GeminiService(BaseLLMProvider):
     def __init__(self, api_key: str | None = None, base_url: str | None = None) -> None:
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         self.base_url = base_url or os.getenv("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta")

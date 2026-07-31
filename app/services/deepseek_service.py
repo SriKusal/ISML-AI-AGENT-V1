@@ -4,11 +4,12 @@ from typing import Any
 import httpx
 
 from app.logging import get_logger
+from app.services.base import BaseLLMProvider
 
 logger = get_logger("app.services.deepseek")
 
 
-class DeepSeekService:
+class DeepSeekService(BaseLLMProvider):
     def __init__(self, api_key: str | None = None, base_url: str | None = None) -> None:
         self.api_key = api_key or os.getenv("DEEPSEEK_API_KEY")
         self.base_url = base_url or os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
