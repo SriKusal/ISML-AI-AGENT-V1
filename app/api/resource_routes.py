@@ -117,6 +117,13 @@ async def generate_resource_intelligence(request: ResourceIntelligenceRequest) -
                 "topic_understanding": state.topic_understanding,
                 "search_queries_generated": len(state.search_queries),
                 "search_queries": state.search_queries[:10],  # Return first 10 queries
+                "discovered_resources_count": sum(
+                    len(resources) for resources in state.discovered_resources.values()
+                ) if state.discovered_resources else 0,
+                "discovered_resources_by_query": {
+                    query: len(resources)
+                    for query, resources in state.discovered_resources.items()
+                } if state.discovered_resources else {},
             },
             "output": {
                 "is_valid": state.is_valid,

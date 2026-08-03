@@ -8,6 +8,7 @@ import json
 
 from app.agents.state import ResourceIntelligenceState, AgentPhase, ResourceIntelligenceOutput
 from app.services.provider_factory import LLMProviderFactory
+from app.services.resource_discovery import ResourceDiscoveryEngine
 from prompts import SYSTEM_PROMPT_TEMPLATE, TASK_PROMPT_TEMPLATE
 from app.logging import get_logger
 
@@ -118,9 +119,39 @@ class WorkflowNodes:
             
             state.search_queries = unique_queries
             state.add_message(f"Search strategy generated: {len(unique_queries)} query variations")
-            state.phase = AgentPhase.BUILD_PROMPT
+            state.phase = AgentPhase.DISCOVER_RESOURCES
         except Exception as exc:
             state.add_error(f"Failed to generate search strategy: {exc}")
+            state.phase = AgentPhase.COMPLETE
+        
+        return state
+    
+    @staticmethod
+    async def discover_resources_node(state: ResourceIntelligenceState) -> ResourceIntelligenceState:
+        """Discover resources from multiple sources using search queries."""
+        logger.info("Discovering resources for topic: %s", state.topic)
+        
+        try:
+            engine = ResourceDiscoveryEngine()
+            
+            # Discover resources for all search queries
+            discovered = await engine.discover_all(
+                search_queries=state.search_queries,
+                max_results_per_source=3,
+            )
+            
+            # Convert ResourceMetadata objects to dictionaries
+            resources_dict = {}
+            total_resources = 0
+            for query, resources in discovered.items():
+                resources_dict[query] = [r.to_dict() for r in resources]
+                total_resources += len(resources)
+            
+            state.discovered_resources = resources_dict
+            state.add_message(f"Resource discovery completed: {total_resources} resources found across {len(state.search_queries)} queries")
+            state.phase = AgentPhase.BUILD_PROMPT
+        except Exception as exc:
+            state.add_error(f"Failed to discover resources: {exc}")
             state.phase = AgentPhase.COMPLETE
         
         return state
