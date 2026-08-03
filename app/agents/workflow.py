@@ -9,6 +9,8 @@ import json
 from app.agents.state import ResourceIntelligenceState, AgentPhase, ResourceIntelligenceOutput
 from app.services.provider_factory import LLMProviderFactory
 from app.services.resource_discovery import ResourceDiscoveryEngine
+from app.services.resource_evaluation import ResourceScoringEngine
+from app.services.resource_ranking import ResourceRankingEngine, RecommendationEngine
 from prompts import SYSTEM_PROMPT_TEMPLATE, TASK_PROMPT_TEMPLATE
 from app.logging import get_logger
 
@@ -149,9 +151,134 @@ class WorkflowNodes:
             
             state.discovered_resources = resources_dict
             state.add_message(f"Resource discovery completed: {total_resources} resources found across {len(state.search_queries)} queries")
-            state.phase = AgentPhase.BUILD_PROMPT
+            state.phase = AgentPhase.EVALUATE_RESOURCES
         except Exception as exc:
             state.add_error(f"Failed to discover resources: {exc}")
+            state.phase = AgentPhase.COMPLETE
+        
+        return state
+    
+    @staticmethod
+    def evaluate_resources_node(state: ResourceIntelligenceState) -> ResourceIntelligenceState:
+        """Evaluate discovered resources across multiple dimensions."""
+        logger.info("Evaluating %d resources", sum(len(r) for r in state.discovered_resources.values()))
+        
+        try:
+            evaluated_resources = []
+            scoring_engine = ResourceScoringEngine()
+            
+            # Score all discovered resources
+            for query, resources in state.discovered_resources.items():
+                for resource in resources:
+                    try:
+                        # Score the resource
+                        scored = scoring_engine.score_resource(resource, state.topic_understanding)
+                        evaluated_resources.append(scored.to_dict())
+                    except Exception as exc:
+                        logger.warning(f"Failed to score resource '{resource.get('title', 'Unknown')}': {exc}")
+            
+            state.evaluated_resources = evaluated_resources
+            state.add_message(f"Evaluated {len(evaluated_resources)} resources across 4 scoring dimensions")
+            state.phase = AgentPhase.RANK_RESOURCES
+        except Exception as exc:
+            state.add_error(f"Failed to evaluate resources: {exc}")
+            state.phase = AgentPhase.COMPLETE
+        
+        return state
+    
+    @staticmethod
+    def rank_resources_node(state: ResourceIntelligenceState) -> ResourceIntelligenceState:
+        """Rank resources and generate learning recommendations."""
+        logger.info("Ranking %d evaluated resources", len(state.evaluated_resources))
+        
+        try:
+            # Convert evaluated resources back to ComprehensiveResourceScore objects
+            from app.services.resource_evaluation import ComprehensiveResourceScore, RelevanceScore, EducationalQualityScore, CredibilityScore, LearningEffectivenessScore
+            
+            scored_objects = []
+            for eval_resource in state.evaluated_resources:
+                scored = ComprehensiveResourceScore(
+                    resource_id=eval_resource['resource_id'],
+                    title=eval_resource['title'],
+                    resource_type=eval_resource['resource_type'],
+                    url=eval_resource['url'],
+                )
+                
+                # Reconstruct score objects from dictionaries
+                rel_dict = eval_resource['relevance']
+                scored.relevance = RelevanceScore(
+                    topic_match=rel_dict['topic_match'],
+                    keyword_match=rel_dict['keyword_match'],
+                    learning_objective_coverage=rel_dict['learning_objective_coverage'],
+                    difficulty_alignment=rel_dict['difficulty_alignment'],
+                )
+                
+                edu_dict = eval_resource['educational_quality']
+                scored.educational_quality = EducationalQualityScore(
+                    content_accuracy=edu_dict['content_accuracy'],
+                    pedagogical_effectiveness=edu_dict['pedagogical_effectiveness'],
+                    engagement_level=edu_dict['engagement_level'],
+                    comprehensiveness=edu_dict['comprehensiveness'],
+                    clarity=edu_dict['clarity'],
+                    interactivity=edu_dict['interactivity'],
+                )
+                
+                cred_dict = eval_resource['credibility']
+                scored.credibility = CredibilityScore(
+                    source_authority=cred_dict['source_authority'],
+                    publication_reputation=cred_dict['publication_reputation'],
+                    author_expertise=cred_dict['author_expertise'],
+                    peer_review_status=cred_dict['peer_review_status'],
+                    currency=cred_dict['currency'],
+                )
+                
+                eff_dict = eval_resource['learning_effectiveness']
+                scored.learning_effectiveness = LearningEffectivenessScore(
+                    skill_development=eff_dict['skill_development'],
+                    knowledge_retention=eff_dict['knowledge_retention'],
+                    practical_applicability=eff_dict['practical_applicability'],
+                    motivation_factor=eff_dict['motivation_factor'],
+                    assessment_compatibility=eff_dict['assessment_compatibility'],
+                )
+                
+                scored_objects.append(scored)
+            
+            # Rank resources
+            ranking_engine = ResourceRankingEngine()
+            ranked = ranking_engine.rank_resources(scored_objects, sort_strategy="composite")
+            
+            state.ranked_resources = [
+                {
+                    "rank": r.rank,
+                    "resource_id": r.resource_id,
+                    "title": r.title,
+                    "url": r.url,
+                    "type": r.resource_type,
+                    "composite_score": round(r.composite_score, 3),
+                    "category": r.category.value,
+                    "reason": r.reason,
+                    "scores": r.score_breakdown,
+                }
+                for r in ranked
+            ]
+            
+            # Generate learning sequence
+            recommendation_engine = RecommendationEngine()
+            learning_seq = recommendation_engine.generate_learning_sequence(ranked)
+            state.learning_sequence = learning_seq.get('learning_sequence', [])
+            
+            # Generate personalized recommendations
+            recommendations = recommendation_engine.generate_personalized_recommendations(
+                ranked,
+                difficulty_level=state.difficulty_level,
+            )
+            state.recommendations = recommendations
+            
+            state.add_message(f"Ranked {len(ranked)} resources and generated learning sequence with {len(state.learning_sequence)} recommendations")
+            state.phase = AgentPhase.BUILD_PROMPT
+        except Exception as exc:
+            logger.error(f"Failed to rank resources: {exc}")
+            state.add_error(f"Failed to rank resources: {exc}")
             state.phase = AgentPhase.COMPLETE
         
         return state

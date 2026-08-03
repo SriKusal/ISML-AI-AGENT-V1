@@ -125,6 +125,17 @@ async def generate_resource_intelligence(request: ResourceIntelligenceRequest) -
                     for query, resources in state.discovered_resources.items()
                 } if state.discovered_resources else {},
             },
+            "evaluation": {
+                "evaluated_resources_count": len(state.evaluated_resources),
+                "evaluation_dimensions": ["relevance", "educational_quality", "credibility", "learning_effectiveness"],
+            } if state.evaluated_resources else None,
+            "ranking": {
+                "ranked_resources_count": len(state.ranked_resources),
+                "top_recommendations": state.ranked_resources[:10] if state.ranked_resources else [],
+                "learning_sequence_length": len(state.learning_sequence),
+                "learning_sequence": state.learning_sequence[:5] if state.learning_sequence else [],
+            } if state.ranked_resources else None,
+            "recommendations": state.recommendations if state.recommendations else None,
             "output": {
                 "is_valid": state.is_valid,
                 "parsed_output": state.parsed_output,

@@ -15,6 +15,8 @@ class AgentPhase(str, Enum):
     TOPIC_ANALYSIS = "topic_analysis"
     SEARCH_STRATEGY = "search_strategy"
     DISCOVER_RESOURCES = "discover_resources"
+    EVALUATE_RESOURCES = "evaluate_resources"
+    RANK_RESOURCES = "rank_resources"
     BUILD_PROMPT = "build_prompt"
     QUERY_PROVIDER = "query_provider"
     PARSE_RESPONSE = "parse_response"
@@ -51,6 +53,14 @@ class ResourceIntelligenceState:
     
     # Resource discovery output
     discovered_resources: dict = field(default_factory=dict)
+    
+    # Resource evaluation output
+    evaluated_resources: list[dict] = field(default_factory=list)
+    
+    # Resource ranking output
+    ranked_resources: list[dict] = field(default_factory=list)
+    learning_sequence: list[dict] = field(default_factory=list)
+    recommendations: dict = field(default_factory=dict)
     
     # Constructed prompts
     system_prompt: str = ""
