@@ -5,6 +5,7 @@ import httpx
 
 from app.logging import get_logger
 from app.services.base import BaseLLMProvider
+from app.utils.retry import async_retry, LLM_RETRY_CONFIG
 
 logger = get_logger("app.services.deepseek")
 
@@ -14,6 +15,7 @@ class DeepSeekService(BaseLLMProvider):
         self.api_key = api_key or os.getenv("DEEPSEEK_API_KEY")
         self.base_url = base_url or os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 
+    @async_retry(LLM_RETRY_CONFIG)
     async def generate_text(self, prompt: str, model: str = "deepseek-chat") -> dict[str, Any]:
         if not self.api_key:
             raise ValueError("DEEPSEEK_API_KEY is not configured")
@@ -23,9 +25,20 @@ class DeepSeekService(BaseLLMProvider):
             "messages": [{"role": "user", "content": prompt}],
         }
 
-        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(f"{self.base_url}/chat/completions", json=payload, headers=headers)
+        logger.info(
+            "Calling DeepSeek model=%s prompt_len=%d",
+            model, len(prompt),
+            extra={"provider": "deepseek"},
+        )
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                f"{self.base_url}/chat/completions", json=payload, headers=headers
+            )
             response.raise_for_status()
             return response.json()

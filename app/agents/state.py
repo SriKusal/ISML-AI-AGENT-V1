@@ -13,6 +13,7 @@ class AgentPhase(str, Enum):
     """Phases in the resource intelligence workflow."""
     INITIALIZE = "initialize"
     TOPIC_ANALYSIS = "topic_analysis"
+    KNOWLEDGE_RETRIEVAL = "knowledge_retrieval"   # ENH-006: check DB before discovery
     SEARCH_STRATEGY = "search_strategy"
     DISCOVER_RESOURCES = "discover_resources"
     EVALUATE_RESOURCES = "evaluate_resources"
@@ -47,13 +48,22 @@ class ResourceIntelligenceState:
     
     # Topic analysis output
     topic_understanding: dict = field(default_factory=dict)
-    
+
+    # Knowledge retrieval output (ENH-006)
+    knowledge_retrieved: bool = False        # True = sufficient existing knowledge found
+    existing_resources_count: int = 0        # How many existing DB resources were found
+
     # Search strategy output
     search_queries: list[str] = field(default_factory=list)
     
     # Resource discovery output
     discovered_resources: dict = field(default_factory=dict)
-    
+
+    # Validation output (BUG-005 / BUG-006 / BUG-007)
+    validated_count: int = 0
+    rejected_count: int = 0
+    validation_stats: dict = field(default_factory=dict)
+
     # Resource evaluation output
     evaluated_resources: list[dict] = field(default_factory=list)
     

@@ -300,33 +300,47 @@ class RecommendationEngine:
             "supplementary": [],
         }
         
+        # Derive adaptive thresholds from the actual score distribution so
+        # recommendations are never empty regardless of absolute score range.
+        all_scores = [r.composite_score for r in filtered] if filtered else [0.0]
+        max_score = max(all_scores)
+        # Essential: top-tier (within 10 % of max, or absolute > 0.75)
+        essential_threshold = min(max_score * 0.90, 0.75)
+        # Recommended: mid-tier (within 20 % of max, or absolute > 0.65)
+        recommended_threshold = min(max_score * 0.80, 0.65)
+        # Supplementary: remaining reasonable resources (absolute > 0.50)
+        supplementary_threshold = min(max_score * 0.70, 0.50)
+
         # Essential: high-ranked, high-quality resources
         for resource in filtered[:5]:
-            if resource.composite_score > 0.80:
+            if resource.composite_score >= essential_threshold:
                 recommendations["essential"].append({
                     "title": resource.title,
                     "url": resource.url,
                     "type": resource.resource_type,
+                    "score": round(resource.composite_score, 3),
                     "why": resource.reason,
                 })
-        
+
         # Recommended: good quality resources
         for resource in filtered[5:10]:
-            if resource.composite_score > 0.70:
+            if resource.composite_score >= recommended_threshold:
                 recommendations["recommended"].append({
                     "title": resource.title,
                     "url": resource.url,
                     "type": resource.resource_type,
+                    "score": round(resource.composite_score, 3),
                     "why": resource.reason,
                 })
-        
+
         # Supplementary: additional resources
         for resource in filtered[10:15]:
-            if resource.composite_score > 0.60:
+            if resource.composite_score >= supplementary_threshold:
                 recommendations["supplementary"].append({
                     "title": resource.title,
                     "url": resource.url,
                     "type": resource.resource_type,
+                    "score": round(resource.composite_score, 3),
                     "why": resource.reason,
                 })
         

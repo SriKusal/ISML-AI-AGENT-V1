@@ -318,6 +318,9 @@ class ResourceDiscoveryEngine:
     ) -> dict[str, list[ResourceMetadata]]:
         """Discover resources from all sources for the given queries.
         
+        Runs all queries and all sources in parallel using asyncio.gather
+        for maximum concurrency.
+        
         Args:
             search_queries: List of search queries
             max_results_per_source: Max results per source per query
@@ -325,31 +328,34 @@ class ResourceDiscoveryEngine:
         Returns:
             Dictionary mapping query to list of discovered resources
         """
-        logger.info(f"Starting comprehensive resource discovery for {len(search_queries)} queries")
+        logger.info(f"Starting parallel resource discovery for {len(search_queries)} queries")
         
-        all_resources = {}
+        import asyncio
+
+        async def discover_for_query(query: str) -> tuple[str, list[ResourceMetadata]]:
+            """Discover from all 4 sources in parallel for one query."""
+            tasks = [
+                self.web_search.search(query, max_results_per_source),
+                self.youtube.search(query, max_results_per_source),
+                self.pdf_search.search(query, max_results_per_source),
+                self.article_search.search(query, max_results_per_source),
+            ]
+            results = await asyncio.gather(*tasks)
+            combined = []
+            for result_list in results:
+                combined.extend(result_list)
+            logger.debug(f"Query '{query}': {len(combined)} resources")
+            return query, combined
+
+        # Discover for all queries in parallel
+        tasks = [discover_for_query(q) for q in search_queries]
+        results_list = await asyncio.gather(*tasks)
+
+        # Convert list of tuples back to dict
+        all_resources = dict(results_list)
         
-        for query in search_queries:
-            logger.info(f"Discovering resources for query: {query}")
-            
-            resources = []
-            
-            # Search all sources
-            web_results = await self.web_search.search(query, max_results_per_source)
-            youtube_results = await self.youtube.search(query, max_results_per_source)
-            pdf_results = await self.pdf_search.search(query, max_results_per_source)
-            article_results = await self.article_search.search(query, max_results_per_source)
-            
-            # Combine results
-            resources.extend(web_results)
-            resources.extend(youtube_results)
-            resources.extend(pdf_results)
-            resources.extend(article_results)
-            
-            all_resources[query] = resources
-            logger.info(f"Query '{query}': found {len(resources)} resources")
-        
-        logger.info(f"Resource discovery complete: {sum(len(r) for r in all_resources.values())} total resources")
+        total = sum(len(r) for r in all_resources.values())
+        logger.info(f"Parallel discovery complete: {total} total resources")
         return all_resources
     
     async def discover_by_type(

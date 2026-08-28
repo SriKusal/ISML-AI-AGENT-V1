@@ -14,16 +14,17 @@ logger = get_logger("app.agents.graph")
 
 class ResourceIntelligenceGraph:
     """Manages the LangGraph workflow for resource intelligence."""
-    
+
     def __init__(self):
         """Initialize the graph structure."""
         self.nodes = WorkflowNodes()
-    
+
     def get_node_functions(self) -> dict[str, Any]:
         """Return a mapping of node names to their functions."""
         return {
             "initialize": self.nodes.initialize_node,
             "topic_analysis": self.nodes.topic_analysis_node,
+            "knowledge_retrieval": self.nodes.knowledge_retrieval_node,  # ENH-006
             "search_strategy": self.nodes.search_strategy_node,
             "discover_resources": self.nodes.discover_resources_node,
             "evaluate_resources": self.nodes.evaluate_resources_node,
@@ -34,12 +35,13 @@ class ResourceIntelligenceGraph:
             "validate_output": self.nodes.validate_output_node,
             "complete": self.nodes.complete_node,
         }
-    
+
     def get_edge_mapping(self) -> dict[str, str]:
         """Return the default edge routing based on phase."""
         return {
             AgentPhase.INITIALIZE: "initialize",
             AgentPhase.TOPIC_ANALYSIS: "topic_analysis",
+            AgentPhase.KNOWLEDGE_RETRIEVAL: "knowledge_retrieval",
             AgentPhase.SEARCH_STRATEGY: "search_strategy",
             AgentPhase.DISCOVER_RESOURCES: "discover_resources",
             AgentPhase.EVALUATE_RESOURCES: "evaluate_resources",
@@ -50,7 +52,7 @@ class ResourceIntelligenceGraph:
             AgentPhase.VALIDATE_OUTPUT: "validate_output",
             AgentPhase.COMPLETE: "complete",
         }
-    
+
     def get_next_node(self, state: ResourceIntelligenceState) -> str:
         """Determine the next node based on current phase."""
         mapping = self.get_edge_mapping()
